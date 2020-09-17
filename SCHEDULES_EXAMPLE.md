@@ -1,6 +1,6 @@
-# Exemplos de Schedules
+# Schedules Example
 
-> De Segunda a Sexta
+> Monday - Friday
 
 ```json
 {"workday": {"start": 8, "stop": 22}}
