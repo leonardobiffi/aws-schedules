@@ -78,6 +78,8 @@ def ec2_check():
                 if schedule_tag in tag['Key']:
                     data = tag['Value']
                     break
+            else:
+                logger.info("Not found Tag Name: \"%s\", skipping ..." %(schedule_tag))
             
             # Start instances
             try:
@@ -85,7 +87,7 @@ def ec2_check():
 
                     logger.info("Starting EC2 instance \"%s\" ..." %(instance.id))
                     started.append(instance.id)
-                    #ec2.instances.filter(InstanceIds=[instance.id]).start()
+                    ec2.instances.filter(InstanceIds=[instance.id]).start()
             except Exception as e:
                 logger.error("Error checking start time : %s" % e)
                 pass
@@ -96,13 +98,115 @@ def ec2_check():
 
                     logger.info("Stopping EC2 instance \"%s\" ..." %(instance.id))
                     stopped.append(instance.id)
-                    #ec2.instances.filter(InstanceIds=[instance.id]).stop()
+                    ec2.instances.filter(InstanceIds=[instance.id]).stop()
             except Exception as e:
                 logger.error("Error checking stop time : %s" % e)
 
         except ValueError as e:
             # invalid JSON
             logger.error('Invalid value for tag \"schedule\" on EC2 instance \"%s\", please check!' %(instance.id))
+
+def rds_init():
+    # Setup AWS connection
+    aws_region = os.getenv('AWS_REGION', 'us-east-1')
+
+    logger.info("Connecting rds to region \"%s\"", aws_region)
+    global rds
+    rds = boto3.client('rds', region_name=aws_region)
+    logger.info("Connected rds to region \"%s\"", aws_region)
+
+#
+# Loop RDS instances and check if a 'schedule' tag has been set. Next, evaluate value and start/stop instance if needed.
+#
+def rds_check():
+    # Get all reservations.
+    instances = rds.describe_db_instances()
+    clusters = rds.describe_db_clusters()
+
+    # Get current day + hour (using gmt by default if time parameter not set to local)
+    time_zone = os.getenv('TIME', 'gmt')
+    if time_zone == 'local':
+        hh  = int(time.strftime("%H", time.localtime()))
+        day = time.strftime("%a", time.localtime()).lower()
+        logger.info("Checking RDS instances to start or stop for 'day' " + day + " 'local time' hour " + str(hh))
+    elif time_zone == 'gmt':
+        hh  = int(time.strftime("%H", time.gmtime()))
+        day = time.strftime("%a", time.gmtime()).lower()
+        logger.info("Checking RDS instances to start or stop for 'day' " + day + " 'gmt' hour " + str(hh))
+    else:
+        if time_zone in pytz.all_timezones:
+            d = datetime.datetime.now()
+            d = pytz.utc.localize(d)
+            req_timezone = pytz.timezone(time_zone)
+            d_req_timezone = d.astimezone(req_timezone)
+            hh = int(d_req_timezone.strftime("%H"))
+            day = d_req_timezone.strftime("%a").lower()
+            logger.info("Checking RDS instances to start or stop for 'day' " + day + " '" + time_zone + "' hour " + str(hh))
+        else:
+            logger.error('Invalid time timezone string value \"%s\", please check!' %(time_zone))
+            raise ValueError('Invalid time timezone string value')
+
+    if not instances:
+        logger.error('Unable to find any RDS Instances, please check configuration')
+    hh = str(hh)
+    rds_loop(instances, hh, day, 'Instance')
+    rds_loop(clusters, hh, day, 'Cluster')
+
+
+#
+# Checks the schedule tags for instances or clusters, and stop/starts accordingly
+#
+def rds_loop(rds_objects, hh, day, object_type):
+    started = []
+    stopped = []
+
+    schedule_tag = os.getenv('TAG', 'schedule')
+    logger.info("schedule tag is called \"%s\"", schedule_tag)
+    
+    for instance in rds_objects['DB'+object_type+'s']:
+        if 'DBInstanceStatus' not in instance: instance['DBInstanceStatus'] = ''
+        if 'Status' not in instance: instance['Status'] = ''
+        # instance = json.loads(db_instance)
+        
+        logger.info("Evaluating RDS instance \"%s\" state: %s" % (instance['DB'+object_type+'Identifier'], instance['DBInstanceStatus']))
+        response = rds.list_tags_for_resource(ResourceName=instance['DB'+object_type+'Arn'])
+        taglist = response['TagList']
+        
+        try:
+            data = ""
+            for tag in taglist:
+                if schedule_tag in tag['Key']:
+                    data = tag['Value']
+                    break
+            else:
+                logger.info("Not found Tag Name: \"%s\", skipping ..." %(schedule_tag))
+
+            try:
+                # Convert the start/stop hour into a list, in case of multiple values
+                if checkdate(data, 'start', day, hh) and (instance['DBInstanceStatus'] == 'stopped' or instance['Status'] == 'stopped'):
+
+                    logger.info("Starting RDS instance \"%s\"." %(instance['DB'+object_type+'Identifier']))
+                    started.append(instance['DB'+object_type+'Identifier'])
+                    
+                    if object_type == 'Instance': rds.start_db_instance(DBInstanceIdentifier=instance['DB'+object_type+'Identifier'])
+                    if object_type == 'Cluster': rds.start_db_cluster(DBClusterIdentifier=instance['DB'+object_type+'Identifier'])
+
+                elif checkdate(data, 'stop', day, hh) and (instance['DBInstanceStatus'] == 'available' or instance['Status'] == 'available'):
+                    
+                    logger.info("Stopping RDS instance \"%s\"." %(instance['DB'+object_type+'Identifier']))
+                    stopped.append(instance['DB'+object_type+'Identifier'])
+                    
+                    if object_type == 'Instance': rds.stop_db_instance(DBInstanceIdentifier=instance['DB'+object_type+'Identifier'])
+                    if object_type == 'Cluster': rds.stop_db_cluster(DBClusterIdentifier=instance['DB'+object_type+'Identifier'])
+            
+            except Exception as e:
+                logger.info("ERROR rds_loop \"%s\" " % (e))
+                pass # catch exception if 'stop' is not in schedule.
+
+        except ValueError as e:
+            # invalid JSON
+            logger.error(e)
+            logger.error('Invalid value for tag \"schedule\" on RDS instance \"%s\", please check!' %(instance['DB'+object_type+'Identifier']))
 
 
 # Main function. Entrypoint for Lambda
@@ -112,9 +216,9 @@ def handler(event, context):
         ec2_init()
         ec2_check()
 
-    #if (rds_schedule == 'True'):
-    #    rds_init()
-    #    rds_check()
+    if (rds_schedule == 'True'):
+        rds_init()
+        rds_check()
 
 # Manual invocation of the script (only used for testing)
 if __name__ == "__main__":
