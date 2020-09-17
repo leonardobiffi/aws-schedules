@@ -1,0 +1,42 @@
+service: scheduler-instances-${env:AWS_REGION}
+
+plugins:
+  - serverless-dotenv-plugin
+provider:
+  name: aws
+  runtime: python3.8
+  memorySize: 128
+  timeout: 900
+  region: ${env:AWS_REGION}
+  environment:
+    DEGUG: ${env:DEGUG}
+    AWS_REGION: ${env:AWS_REGION}
+    RDS_SCHEDULE: ${env:RDS_SCHEDULE}
+    EC2_SCHEDULE: ${env:EC2_SCHEDULE}
+    TIME: ${env:TIME}
+    TAG: ${env:TAG}
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+        - "ec2:DescribeInstances"
+        - "ec2:DescribeRegions"
+        - "ec2:StartInstances"
+        - "ec2:StopInstances"
+        - "rds:DescribeDBInstances"
+        - "rds:DescribeDBClusters"
+        - "rds:StartDBInstance"
+        - "rds:StopDBInstance"
+        - "rds:ListTagsForResource"
+        - "logs:*"
+      Resource:
+        - "*"
+
+functions:
+  function:
+    handler: scheduler.handler
+    events:
+      - schedule: cron(0 * * * ? *)
+
+custom:
+  pythonRequirements:
+    dockerizePip: false

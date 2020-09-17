@@ -6,10 +6,6 @@ from functions.main import *
 
 aws_region = None
 
-create_schedule_tag_force = os.getenv('SCHEDULE_TAG_FORCE', 'False')
-create_schedule_tag_force = create_schedule_tag_force.capitalize()
-logger.info("create_schedule_tag_force is %s" % create_schedule_tag_force)
-
 rds_schedule = os.getenv('RDS_SCHEDULE', 'True')
 rds_schedule = rds_schedule.capitalize()
 logger.info("rds_schedule is %s" % rds_schedule)
