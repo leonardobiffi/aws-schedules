@@ -1,4 +1,4 @@
-service: scheduler-instances-${env:AWS_REGION}
+service: scheduler-instances-${env:REGION}
 
 plugins:
   - serverless-dotenv-plugin
@@ -7,10 +7,10 @@ provider:
   runtime: python3.8
   memorySize: 128
   timeout: 900
-  region: ${env:AWS_REGION}
+  region: ${env:REGION}
   environment:
     DEGUG: ${env:DEGUG}
-    AWS_REGION: ${env:AWS_REGION}
+    REGION: ${env:REGION}
     RDS_SCHEDULE: ${env:RDS_SCHEDULE}
     EC2_SCHEDULE: ${env:EC2_SCHEDULE}
     TIME: ${env:TIME}

@@ -1,0 +1,9 @@
+{
+  "name": "scheduler-instances",
+  "description": "",
+  "version": "0.1.0",
+  "dependencies": {},
+  "devDependencies": {
+    "serverless-dotenv-plugin": "^3.0.0"
+  }
+}

@@ -19,7 +19,7 @@ logger.info("ec2_schedule is %s" % ec2_schedule)
 #
 def ec2_init():
     # Setup AWS connection
-    aws_region = os.getenv('AWS_REGION', 'us-east-1')
+    aws_region = os.getenv('REGION', 'us-east-1')
 
     global ec2
     logger.info("Connecting to region \"%s\"", aws_region)
@@ -104,7 +104,7 @@ def ec2_check():
 
 def rds_init():
     # Setup AWS connection
-    aws_region = os.getenv('AWS_REGION', 'us-east-1')
+    aws_region = os.getenv('REGION', 'us-east-1')
 
     logger.info("Connecting rds to region \"%s\"", aws_region)
     global rds
