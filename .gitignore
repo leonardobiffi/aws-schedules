@@ -1,6 +1,8 @@
 ref
-__pycache__/
-node_modules/
+__pycache__
+node_modules
+.serverless
+
 .env*
 
 !.env.example

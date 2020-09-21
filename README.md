@@ -9,7 +9,9 @@ In order to deploy the lambda to the Client, it is necessary to have awscli conf
 Install plugins serverless framework
 
 ```bash
+export $(grep -v '^#' .env.example | xargs)
 serverless plugin install -n serverless-dotenv-plugin
+serverless plugin install -n serverless-python-requirements
 ```
 
 ### Configure arquivo .env
