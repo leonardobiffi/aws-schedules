@@ -14,7 +14,7 @@ serverless plugin install -n serverless-dotenv-plugin
 serverless plugin install -n serverless-python-requirements
 ```
 
-### Configure arquivo .env
+### Configure file .env
 
 Create copy of file .env.example like .env.prod
 
