@@ -1,2 +1,5 @@
 ref
 __pycache__/
+.env*
+
+!.env.example
