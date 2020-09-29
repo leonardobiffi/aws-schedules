@@ -14,6 +14,10 @@ ec2_schedule = os.getenv('EC2_SCHEDULE', 'True')
 ec2_schedule = ec2_schedule.capitalize()
 logger.info("ec2_schedule is %s" % ec2_schedule)
 
+ecs_schedule = os.getenv('ECS_SCHEDULE', 'True')
+ecs_schedule = ecs_schedule.capitalize()
+logger.info("ecs_schedule is %s" % ecs_schedule)
+
 #
 # Init EC2
 #
@@ -204,6 +208,130 @@ def rds_loop(rds_objects, hh, day, object_type):
             logger.error(e)
             logger.error('Invalid value for tag \"schedule\" on RDS instance \"%s\", please check!' %(instance['DB'+object_type+'Identifier']))
 
+def ecs_init():
+    # Setup AWS connection
+    aws_region = os.getenv('REGION', 'us-east-1')
+    logger.info("Connecting ecs to region \"%s\"", aws_region)
+    
+    global ecs, dyn
+    ecs = boto3.client('ecs', region_name=aws_region)
+    dyn = boto3.client('dynamodb', region_name=aws_region)
+
+    logger.info("Connected ecs to region \"%s\"", aws_region)
+
+def ecs_check():
+    # Get all Clusters
+    clusters = ecs.list_clusters()
+
+    schedule_tag = os.getenv('TAG', 'schedule')
+    logger.info("schedule tag is called \"%s\"", schedule_tag)
+
+    # Get current day + hour (using gmt by default if time parameter not set to local)
+    time_zone =  os.getenv('TIME', 'gmt')
+    if time_zone == 'local':
+        hh  = int(time.strftime("%H", time.localtime()))
+        day = time.strftime("%a", time.localtime()).lower()
+        logger.info("Checking for EC2 instances to start or stop for 'day' " + day + " 'local time' hour " + str(hh))
+    elif time_zone == 'gmt':
+        hh  = int(time.strftime("%H", time.gmtime()))
+        day = time.strftime("%a", time.gmtime()).lower()
+        logger.info("Checking for EC2 instances to start or stop for 'day' " + day + " 'gmt' hour " + str(hh))
+    else:
+        if time_zone in pytz.all_timezones:
+            d = datetime.datetime.now()
+            d = pytz.utc.localize(d)
+            req_timezone = pytz.timezone(time_zone)
+            d_req_timezone = d.astimezone(req_timezone)
+            hh = int(d_req_timezone.strftime("%H"))
+            day = d_req_timezone.strftime("%a").lower()
+            logger.info("Checking for EC2 instances to start or stop for 'day' " + day + " '" + time_zone + "' hour " + str(hh))
+        else:
+            logger.error('Invalid time timezone string value \"%s\", please check!' %(time_zone))
+            raise ValueError('Invalid time timezone string value')
+
+    for cluster in clusters['clusterArns']:
+        response_tags = ecs.list_tags_for_resource(resourceArn=cluster)
+        tags_list = response_tags['tags']
+
+        data = "{}"
+        for tag in tags_list:
+            if schedule_tag in tag['key']:
+                data = tag['value']
+                break
+        else:
+            logger.info("Not found Tag Name: \"%s\", skipping ..." %(schedule_tag))
+        
+        services = ecs.list_services(
+            cluster=cluster
+        )
+
+        logger.info('Cluster: {}'.format(cluster))
+
+        for service in services['serviceArns']:
+            logger.info("Updating service: {}".format(service))
+
+            service_details = ecs.describe_services(
+                cluster=cluster,
+                services=[service]
+            )
+
+            desired_count = service_details['services'][0]['desiredCount']
+
+            # Start Tasks
+            try:
+                if checkdate(data, 'start', day, hh) and desired_count == 0:
+                    # Get desired count stored in dynamodb table
+                    get_item = dyn.get_item(
+                        TableName='ecs-schedule',
+                        Key={
+                            'service': {
+                                'S': service
+                            }
+                        }
+                    )
+
+                    desired_count = get_item['Item']['desired_count']['N']
+
+                    logger.info("Update to default {} Tasks in Service {}".format(desired_count, service))
+
+                    update_service = ecs.update_service(
+                        cluster=cluster,
+                        service=service,
+                        desiredCount=desired_count
+                    )
+
+            except Exception as e:
+                logger.info("Error checking stop time : %s" % e)
+                pass
+
+            # Stop Tasks
+            try:
+                if checkdate(data, 'stop', day, hh) and desired_count != 0:
+                    # Update desired count to service in dynamodb table
+                    update_table = dyn.put_item(
+                        TableName='ecs-schedule',
+                        Item={
+                            'service': {
+                                'S': service
+                            },
+                            'desired_count': {
+                                'N': str(desired_count)
+                            }
+                        }
+                    )
+
+                    logger.info("Update to {} Tasks in Service {}".format(desired_count, service))
+
+                    update_service = ecs.update_service(
+                        cluster=cluster,
+                        service=service,
+                        desiredCount=0
+                    )
+                    
+            except Exception as e:
+                logger.info("Error checking stop time : %s" % e)
+
+        #break
 
 # Main function. Entrypoint for Lambda
 def handler(event, context):
@@ -215,6 +343,10 @@ def handler(event, context):
     if (rds_schedule == 'True'):
         rds_init()
         rds_check()
+    
+    if (ecs_schedule == 'True'):
+        ecs_init()
+        ecs_check()
 
 # Manual invocation of the script (only used for testing)
 if __name__ == "__main__":
