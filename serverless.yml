@@ -1,4 +1,4 @@
-service: scheduler-instances-${env:REGION}
+service: scheduler-${env:REGION}
 
 plugins:
   - serverless-dotenv-plugin
@@ -15,7 +15,8 @@ provider:
     RDS_SCHEDULE: ${env:RDS_SCHEDULE}
     EC2_SCHEDULE: ${env:EC2_SCHEDULE}
     TIME: ${env:TIME}
-    TAG: ${env:TAG}
+    TAG: schedule
+    DYNAMODB_TABLE: ecs-schedule
   iamRoleStatements:
     - Effect: "Allow"
       Action:
@@ -31,6 +32,35 @@ provider:
         - "logs:*"
       Resource:
         - "*"
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan  
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource: 
+        - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+
+resources:
+  Resources:
+    ECSScheduleTable: 
+      Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: service
+            AttributeType: S
+          - AttributeName: desired_count
+            AttributeType: N
+        KeySchema:
+          - AttributeName: service
+            KeyType: HASH
+          - AttributeName: desired_count
+            KeyType: RANGE
+        BillingMode: PAY_PER_REQUEST
+        TableName: ${self:provider.environment.DYNAMODB_TABLE}
 
 functions:
   function:
