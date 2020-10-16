@@ -52,13 +52,9 @@ resources:
         AttributeDefinitions:
           - AttributeName: service
             AttributeType: S
-          - AttributeName: desired_count
-            AttributeType: N
         KeySchema:
           - AttributeName: service
             KeyType: HASH
-          - AttributeName: desired_count
-            KeyType: RANGE
         BillingMode: PAY_PER_REQUEST
         TableName: ${self:provider.environment.DYNAMODB_TABLE}
 
@@ -66,7 +62,7 @@ functions:
   function:
     handler: scheduler.handler
     events:
-      - schedule: cron(0 * * * ? *)
+      - schedule: cron(0 23 * * ? *)
 
 custom:
   pythonRequirements:

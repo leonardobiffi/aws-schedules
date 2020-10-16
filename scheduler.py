@@ -213,9 +213,9 @@ def ecs_init():
     aws_region = os.getenv('REGION', 'us-east-1')
     logger.info("Connecting ecs to region \"%s\"", aws_region)
     
-    global ecs, dyn
+    global ecs, dynamodb_client
     ecs = boto3.client('ecs', region_name=aws_region)
-    dyn = boto3.client('dynamodb', region_name=aws_region)
+    dynamodb_client = boto3.client('dynamodb', region_name=aws_region)
 
     logger.info("Connected ecs to region \"%s\"", aws_region)
 
@@ -279,9 +279,9 @@ def ecs_check():
 
             # Start Tasks
             try:
-                if checkdate(data, 'start', day, hh) and desired_count == 0:
+                if checkdate(data, 'start', day, hh) and check_service_desiredcount( dynamodb_client ,service, desired_count):
                     # Get desired count stored in dynamodb table
-                    get_item = dyn.get_item(
+                    get_item = dynamodb_client.get_item(
                         TableName='ecs-schedule',
                         Key={
                             'service': {
@@ -302,13 +302,20 @@ def ecs_check():
 
             except Exception as e:
                 logger.info("Error checking stop time : %s" % e)
-                pass
+                pass                
 
             # Stop Tasks
             try:
-                if checkdate(data, 'stop', day, hh) and desired_count != 0:
-                    # Update desired count to service in dynamodb table
-                    update_table = dyn.put_item(
+                if checkdate(data, 'stop', day, hh) and check_service_desiredcount( dynamodb_client ,service, desired_count):
+                    
+                    tag_desiredcount = check_desiredcount_tag(data, 'stop-desired', day, hh)
+                    if len(tag_desiredcount) == 0:
+                        tag_desiredcount = 0
+                    
+                    logger.info("Update to {} Tasks in Service {}".format(tag_desiredcount, service))
+
+                    # Update default desiredCount
+                    update_table = dynamodb_client.put_item(
                         TableName='ecs-schedule',
                         Item={
                             'service': {
@@ -320,18 +327,17 @@ def ecs_check():
                         }
                     )
 
-                    logger.info("Update to {} Tasks in Service {}".format(desired_count, service))
-
                     update_service = ecs.update_service(
                         cluster=cluster,
                         service=service,
-                        desiredCount=0
+                        desiredCount=tag_desiredcount
                     )
                     
             except Exception as e:
                 logger.info("Error checking stop time : %s" % e)
 
-        #break
+        
+        break
 
 # Main function. Entrypoint for Lambda
 def handler(event, context):
