@@ -67,7 +67,7 @@ functions:
   function:
     handler: scheduler.handler
     events:
-      - schedule: cron(0 23 * * ? *)
+      - schedule: cron(0 * * * ? *)
 
 custom:
   pythonRequirements:
