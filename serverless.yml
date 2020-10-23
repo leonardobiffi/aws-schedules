@@ -29,6 +29,11 @@ provider:
         - "rds:StartDBInstance"
         - "rds:StopDBInstance"
         - "rds:ListTagsForResource"
+        - "ecs:ListClusters"
+        - "ecs:ListTagsForResource"
+        - "ecs:ListServices"
+        - "ecs:DescribeServices"
+        - "ecs:UpdateService"
         - "logs:*"
       Resource:
         - "*"

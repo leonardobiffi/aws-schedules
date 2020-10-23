@@ -231,11 +231,11 @@ def ecs_check():
     if time_zone == 'local':
         hh  = int(time.strftime("%H", time.localtime()))
         day = time.strftime("%a", time.localtime()).lower()
-        logger.info("Checking for EC2 instances to start or stop for 'day' " + day + " 'local time' hour " + str(hh))
+        logger.info("Checking for ECS instances to start or stop for 'day' " + day + " 'local time' hour " + str(hh))
     elif time_zone == 'gmt':
         hh  = int(time.strftime("%H", time.gmtime()))
         day = time.strftime("%a", time.gmtime()).lower()
-        logger.info("Checking for EC2 instances to start or stop for 'day' " + day + " 'gmt' hour " + str(hh))
+        logger.info("Checking for ECS instances to start or stop for 'day' " + day + " 'gmt' hour " + str(hh))
     else:
         if time_zone in pytz.all_timezones:
             d = datetime.datetime.now()
@@ -244,7 +244,7 @@ def ecs_check():
             d_req_timezone = d.astimezone(req_timezone)
             hh = int(d_req_timezone.strftime("%H"))
             day = d_req_timezone.strftime("%a").lower()
-            logger.info("Checking for EC2 instances to start or stop for 'day' " + day + " '" + time_zone + "' hour " + str(hh))
+            logger.info("Checking for ECS instances to start or stop for 'day' " + day + " '" + time_zone + "' hour " + str(hh))
         else:
             logger.error('Invalid time timezone string value \"%s\", please check!' %(time_zone))
             raise ValueError('Invalid time timezone string value')
@@ -268,14 +268,14 @@ def ecs_check():
         logger.info('Cluster: {}'.format(cluster))
 
         for service in services['serviceArns']:
-            logger.info("Updating service: {}".format(service))
+            logger.info("Checking service: {}".format(service))
 
             service_details = ecs.describe_services(
                 cluster=cluster,
                 services=[service]
             )
 
-            desired_count = service_details['services'][0]['desiredCount']
+            desired_count = int(service_details['services'][0]['desiredCount'])
 
             # Start Tasks
             try:
@@ -297,11 +297,11 @@ def ecs_check():
                     update_service = ecs.update_service(
                         cluster=cluster,
                         service=service,
-                        desiredCount=desired_count
+                        desiredCount=int(desired_count)
                     )
 
             except Exception as e:
-                logger.info("Error checking stop time : %s" % e)
+                logger.info("Error checking start time : %s" % e)
                 pass                
 
             # Stop Tasks
@@ -310,7 +310,11 @@ def ecs_check():
                     
                     tag_desiredcount = check_desiredcount_tag(data, 'stop-desired', day, hh)
                     if len(tag_desiredcount) == 0:
+                        # set to 0, stop all
                         tag_desiredcount = 0
+                    else:
+                        # get first indice
+                        tag_desiredcount = tag_desiredcount[0]
                     
                     logger.info("Update to {} Tasks in Service {}".format(tag_desiredcount, service))
 
@@ -330,7 +334,7 @@ def ecs_check():
                     update_service = ecs.update_service(
                         cluster=cluster,
                         service=service,
-                        desiredCount=tag_desiredcount
+                        desiredCount=int(tag_desiredcount)
                     )
                     
             except Exception as e:
