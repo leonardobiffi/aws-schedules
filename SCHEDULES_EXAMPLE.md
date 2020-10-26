@@ -26,3 +26,12 @@ RDS only list format is accepted
 ```text
 thu_start=7 thu_stop=19
 ```
+
+## ECS
+
+ECS format in list
+
+> List Format
+```text
+daily_start=8 daily_stop=20 daily_stop-desired=0
+```
