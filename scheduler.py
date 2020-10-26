@@ -340,9 +340,6 @@ def ecs_check():
             except Exception as e:
                 logger.info("Error checking stop time : %s" % e)
 
-        
-        break
-
 # Main function. Entrypoint for Lambda
 def handler(event, context):
 
