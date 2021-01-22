@@ -213,8 +213,9 @@ def ecs_init():
     aws_region = os.getenv('REGION', 'us-east-1')
     logger.info("Connecting ecs to region \"%s\"", aws_region)
     
-    global ecs, dynamodb_client
+    global ecs, dynamodb_client, autoscaling
     ecs = boto3.client('ecs', region_name=aws_region)
+    autoscaling = boto3.client("application-autoscaling", region_name=aws_region)
     dynamodb_client = boto3.client('dynamodb', region_name=aws_region)
 
     logger.info("Connected ecs to region \"%s\"", aws_region)
@@ -291,14 +292,23 @@ def ecs_check():
                     )
 
                     desired_count = get_item['Item']['desired_count']['N']
-
                     logger.info("Update to default {} Tasks in Service {}".format(desired_count, service))
 
+                    # Update service desiredCount
                     update_service = ecs.update_service(
                         cluster=cluster,
                         service=service,
                         desiredCount=int(desired_count)
                     )
+
+                    # Update Autoscaling Min to desiredCount
+                    update_autoscaling = autoscaling.register_scalable_target(
+                        ServiceNamespace="ecs",
+                        ResourceId="service/{}/{}".format(cluster, service),
+                        ScalableDimension="ecs:service:DesiredCount",
+                        MinCapacity=int(desired_count)
+                    )
+                    
 
             except Exception as e:
                 logger.info("Error checking start time : %s" % e)
@@ -331,10 +341,19 @@ def ecs_check():
                         }
                     )
 
+                    # Update service desiredCount
                     update_service = ecs.update_service(
                         cluster=cluster,
                         service=service,
                         desiredCount=int(tag_desiredcount)
+                    )
+
+                    # Update Autoscaling Min to desiredCount
+                    update_autoscaling = autoscaling.register_scalable_target(
+                        ServiceNamespace="ecs",
+                        ResourceId="service/{}/{}".format(cluster, service),
+                        ScalableDimension="ecs:service:DesiredCount",
+                        MinCapacity=int(tag_desiredcount)
                     )
                     
             except Exception as e:
