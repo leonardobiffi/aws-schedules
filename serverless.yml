@@ -71,4 +71,4 @@ functions:
 
 custom:
   pythonRequirements:
-    dockerizePip: false
+    dockerizePip: non-linux
