@@ -19,8 +19,6 @@ Change the env for the Client who will Deploy the function if necessary
 Install plugins serverless framework
 
 ```bash
-export $(grep -v '^#' .env.prod | xargs)
-serverless plugin install -n serverless-dotenv-plugin
 serverless plugin install -n serverless-python-requirements
 ```
 
