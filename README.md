@@ -37,7 +37,13 @@ ECS only list format is accepted
 
 > List Format
 ```text
-daily_start=8 daily_stop=20 daily_stop-desired=0
+daily_start=8 daily_stop=20 daily_stop-desired=1
+```
+
+If desired is 0, then daily_stop-desired can be removed
+
+```text
+daily_start=8 daily_stop=20
 ```
 
 ## Deploy
