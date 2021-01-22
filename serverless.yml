@@ -2,7 +2,6 @@ service: scheduler-${env:REGION}
 useDotenv: true
 plugins:
   - serverless-python-requirements
-
 provider:
   name: aws
   runtime: python3.8
