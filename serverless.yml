@@ -29,11 +29,7 @@ provider:
         - "rds:StartDBInstance"
         - "rds:StopDBInstance"
         - "rds:ListTagsForResource"
-        - "ecs:ListClusters"
-        - "ecs:ListTagsForResource"
-        - "ecs:ListServices"
-        - "ecs:DescribeServices"
-        - "ecs:UpdateService"
+        - "ecs:*"
         - "logs:*"
         - "application-autoscaling:*"
       Resource:

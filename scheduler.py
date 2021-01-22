@@ -266,27 +266,35 @@ def ecs_check():
             cluster=cluster
         )
 
-        logger.info('Cluster: {}'.format(cluster))
+        cluster_details = ecs.describe_clusters(
+            clusters=[cluster]
+        )
+
+        cluster_name = cluster_details["clusters"][0]["clusterName"]
+
+        logger.info('Cluster: {}'.format(cluster_name))
 
         for service in services['serviceArns']:
-            logger.info("Checking service: {}".format(service))
-
             service_details = ecs.describe_services(
                 cluster=cluster,
                 services=[service]
             )
 
+            service_name = service_details["services"][0]["serviceName"]
+
+            logger.info("Checking service: {}".format(service_name))
+
             # Get MaxCapacity
             response = autoscaling.describe_scalable_targets(
                 ServiceNamespace='ecs',
                 ResourceIds=[
-                    "service/{}/{}".format(cluster, service),
+                    "service/{}/{}".format(cluster_name, service_name),
                 ],
                 ScalableDimension='ecs:service:DesiredCount'
             )
 
             desired_count = int(service_details['services'][0]['desiredCount'])
-            max_capacity = int(response["ScalableTargets"][0]["MaxCapacity"])
+            max_capacity = response["ScalableTargets"][0]["MaxCapacity"]
 
             # Start Tasks
             try:
@@ -302,7 +310,9 @@ def ecs_check():
                     )
 
                     desired_count = get_item['Item']['desired_count']['N']
-                    logger.info("Update to default {} Tasks in Service {}".format(desired_count, service))
+                    max_capacity_default = get_item['Item']['max_capacity']['N']
+                    
+                    logger.info("Update to default {} Tasks in Service {}".format(desired_count, service_name))
 
                     # Update service desiredCount
                     update_service = ecs.update_service(
@@ -314,10 +324,10 @@ def ecs_check():
                     # Update Autoscaling Min to desiredCount
                     update_autoscaling = autoscaling.register_scalable_target(
                         ServiceNamespace="ecs",
-                        ResourceId="service/{}/{}".format(cluster, service),
+                        ResourceId="service/{}/{}".format(cluster_name, service_name),
                         ScalableDimension="ecs:service:DesiredCount",
                         MinCapacity=int(desired_count),
-                        MaxCapacity=int(max_capacity)
+                        MaxCapacity=int(max_capacity_default)
                     )
                     
 
@@ -337,7 +347,7 @@ def ecs_check():
                         # get first indice
                         tag_desiredcount = tag_desiredcount[0]
                     
-                    logger.info("Update to {} Tasks in Service {}".format(tag_desiredcount, service))
+                    logger.info("Update to {} Tasks in Service {}".format(tag_desiredcount, service_name))
 
                     # Update default desiredCount
                     update_table = dynamodb_client.put_item(
@@ -348,6 +358,9 @@ def ecs_check():
                             },
                             'desired_count': {
                                 'N': str(desired_count)
+                            },
+                            'max_capacity': {
+                                'N': str(max_capacity)
                             }
                         }
                     )
@@ -362,10 +375,10 @@ def ecs_check():
                     # Update Autoscaling Min to desiredCount
                     update_autoscaling = autoscaling.register_scalable_target(
                         ServiceNamespace="ecs",
-                        ResourceId="service/{}/{}".format(cluster, service),
+                        ResourceId="service/{}/{}".format(cluster_name, service_name),
                         ScalableDimension="ecs:service:DesiredCount",
                         MinCapacity=int(tag_desiredcount),
-                        MaxCapacity=int(max_capacity)
+                        MaxCapacity=int(tag_desiredcount)
                     )
                     
             except Exception as e:
