@@ -276,7 +276,17 @@ def ecs_check():
                 services=[service]
             )
 
+            # Get MaxCapacity
+            response = autoscaling.describe_scalable_targets(
+                ServiceNamespace='ecs',
+                ResourceIds=[
+                    "service/{}/{}".format(cluster, service),
+                ],
+                ScalableDimension='ecs:service:DesiredCount'
+            )
+
             desired_count = int(service_details['services'][0]['desiredCount'])
+            max_capacity = int(response["ScalableTargets"][0]["MaxCapacity"])
 
             # Start Tasks
             try:
@@ -306,7 +316,8 @@ def ecs_check():
                         ServiceNamespace="ecs",
                         ResourceId="service/{}/{}".format(cluster, service),
                         ScalableDimension="ecs:service:DesiredCount",
-                        MinCapacity=int(desired_count)
+                        MinCapacity=int(desired_count),
+                        MaxCapacity=int(max_capacity)
                     )
                     
 
@@ -353,7 +364,8 @@ def ecs_check():
                         ServiceNamespace="ecs",
                         ResourceId="service/{}/{}".format(cluster, service),
                         ScalableDimension="ecs:service:DesiredCount",
-                        MinCapacity=int(tag_desiredcount)
+                        MinCapacity=int(tag_desiredcount),
+                        MaxCapacity=int(max_capacity)
                     )
                     
             except Exception as e:

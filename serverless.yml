@@ -35,6 +35,7 @@ provider:
         - "ecs:DescribeServices"
         - "ecs:UpdateService"
         - "logs:*"
+        - "application-autoscaling:*"
       Resource:
         - "*"
     - Effect: Allow
