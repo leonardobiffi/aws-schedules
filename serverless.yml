@@ -1,8 +1,8 @@
 service: scheduler-${env:REGION}
-
+useDotenv: true
 plugins:
-  - serverless-dotenv-plugin
   - serverless-python-requirements
+
 provider:
   name: aws
   runtime: python3.8
@@ -11,12 +11,13 @@ provider:
   region: ${env:REGION}
   environment:
     DEGUG: ${env:DEGUG}
+    TAG: schedule
+    TIME: ${env:TIME}
     REGION: ${env:REGION}
+    DYNAMODB_TABLE: ecs-schedule
     RDS_SCHEDULE: ${env:RDS_SCHEDULE}
     EC2_SCHEDULE: ${env:EC2_SCHEDULE}
-    TIME: ${env:TIME}
-    TAG: schedule
-    DYNAMODB_TABLE: ecs-schedule
+    ECS_SCHEDULE: ${env:ECS_SCHEDULE}
   iamRoleStatements:
     - Effect: "Allow"
       Action:
