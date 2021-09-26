@@ -1,7 +1,11 @@
 service: scheduler-${env:REGION}
+disabledDeprecations: '*'
 useDotenv: true
 plugins:
   - serverless-python-requirements
+custom:
+  pythonRequirements:
+    dockerizePip: python3
 provider:
   name: aws
   runtime: python3.8
@@ -67,7 +71,3 @@ functions:
     handler: scheduler.handler
     events:
       - schedule: cron(0 * * * ? *)
-
-custom:
-  pythonRequirements:
-    dockerizePip: non-linux

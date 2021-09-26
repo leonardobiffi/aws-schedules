@@ -1,4 +1,4 @@
-import os, json, time
+import os, json
 from logger.main import *
 
 # Debug if enable

@@ -1,8 +1,9 @@
 import boto3
-import sys, os, json, logging, datetime, time, pytz
+import os, datetime, time, pytz
 
 from logger.main import *
 from functions.main import *
+from functions.telegram import *
 
 aws_region = None
 
@@ -17,6 +18,9 @@ logger.info("ec2_schedule is %s" % ec2_schedule)
 ecs_schedule = os.getenv('ECS_SCHEDULE', 'True')
 ecs_schedule = ecs_schedule.capitalize()
 logger.info("ecs_schedule is %s" % ecs_schedule)
+
+telegram_alert = os.getenv('TELEGRAM_ALERT', 'False')
+logger.info("telegram alert is %s" % ecs_schedule)
 
 #
 # Init EC2
@@ -105,6 +109,10 @@ def ec2_check():
         except ValueError as e:
             # invalid JSON
             logger.error('Invalid value for tag \"schedule\" on EC2 instance \"%s\", please check!' %(instance.id))
+
+    if telegram_alert == True:
+        alarm_ec2(started, stopped)
+
 
 def rds_init():
     # Setup AWS connection
@@ -207,6 +215,9 @@ def rds_loop(rds_objects, hh, day, object_type):
             # invalid JSON
             logger.error(e)
             logger.error('Invalid value for tag \"schedule\" on RDS instance \"%s\", please check!' %(instance['DB'+object_type+'Identifier']))
+    
+    if telegram_alert == True:
+        alarm_rds(started, stopped)
 
 def ecs_init():
     # Setup AWS connection
@@ -223,6 +234,9 @@ def ecs_init():
 def ecs_check():
     # Get all Clusters
     clusters = ecs.list_clusters()
+
+    started = []
+    stopped = []
 
     schedule_tag = os.getenv('TAG', 'schedule')
     logger.info("schedule tag is called \"%s\"", schedule_tag)
@@ -254,14 +268,6 @@ def ecs_check():
         response_tags = ecs.list_tags_for_resource(resourceArn=cluster)
         tags_list = response_tags['tags']
 
-        data = "{}"
-        for tag in tags_list:
-            if schedule_tag in tag['key']:
-                data = tag['value']
-                break
-        else:
-            logger.info("Not found Tag Name: \"%s\", skipping ..." %(schedule_tag))
-        
         services = ecs.list_services(
             cluster=cluster
         )
@@ -273,6 +279,14 @@ def ecs_check():
         cluster_name = cluster_details["clusters"][0]["clusterName"]
 
         logger.info('Cluster: {}'.format(cluster_name))
+
+        data = "{}"
+        for tag in tags_list:
+            if schedule_tag in tag['key']:
+                data = tag['value']
+                break
+        else:
+            logger.info("Not found Tag Name: \"%s\", skipping ..." %(schedule_tag))
 
         for service in services['serviceArns']:
             service_details = ecs.describe_services(
@@ -329,7 +343,8 @@ def ecs_check():
                         MinCapacity=int(desired_count),
                         MaxCapacity=int(max_capacity_default)
                     )
-                    
+
+                    started.append(service_name)
 
             except Exception as e:
                 logger.info("Error checking start time : %s" % e)
@@ -380,9 +395,14 @@ def ecs_check():
                         MinCapacity=int(tag_desiredcount),
                         MaxCapacity=int(tag_desiredcount)
                     )
+
+                    stopped.append(service_name)
                     
             except Exception as e:
                 logger.info("Error checking stop time : %s" % e)
+    
+    if telegram_alert == True:
+        alarm_ecs(started, stopped)
 
 # Main function. Entrypoint for Lambda
 def handler(event, context):
