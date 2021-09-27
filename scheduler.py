@@ -110,7 +110,7 @@ def ec2_check():
             # invalid JSON
             logger.error('Invalid value for tag \"schedule\" on EC2 instance \"%s\", please check!' %(instance.id))
 
-    if telegram_alert == True:
+    if telegram_alert == 'True':
         alarm_ec2(started, stopped)
 
 
@@ -216,7 +216,7 @@ def rds_loop(rds_objects, hh, day, object_type):
             logger.error(e)
             logger.error('Invalid value for tag \"schedule\" on RDS instance \"%s\", please check!' %(instance['DB'+object_type+'Identifier']))
     
-    if telegram_alert == True:
+    if telegram_alert == 'True':
         alarm_rds(started, stopped)
 
 def ecs_init():
@@ -401,7 +401,7 @@ def ecs_check():
             except Exception as e:
                 logger.info("Error checking stop time : %s" % e)
     
-    if telegram_alert == True:
+    if telegram_alert == 'True':
         alarm_ecs(started, stopped)
 
 # Main function. Entrypoint for Lambda
