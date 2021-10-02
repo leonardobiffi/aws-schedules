@@ -2,6 +2,32 @@
 
 This lambda is Stop and Start RDS, EC2 and ECS services based in TAG defined
 
+## Run Manual
+
+Execute lambda with event in format as shown below
+
+| var   | value                                           |
+|-------|-------------------------------------------------|
+| hh    | hour that is in the resource tag start or stop  |
+
+### EC2
+
+```json
+{"ec2": {"hour": "10"}}
+```
+
+### RDS
+
+```json
+{"rds": {"hour": "8"}}
+```
+
+### EC2
+
+```json
+{"ec2": {"hour": "5"}}
+```
+
 ## Schedules Example
 
 ### EC2

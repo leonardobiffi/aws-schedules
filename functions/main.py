@@ -1,4 +1,5 @@
 import os, json
+from datetime import datetime, timedelta
 from logger.main import *
 
 # Debug if enable
@@ -8,7 +9,7 @@ def debugout(module, data):
     if debugmode:
         logger.info("DEBUG %s : %s" % (module, data))
 
-def flattenjson( b, delim ):
+def flattenjson(b, delim):
     val = {}
     for i in b.keys():
         if isinstance( b[i], dict ):
@@ -20,7 +21,7 @@ def flattenjson( b, delim ):
 
     return val
 
-def dict_to_string( d ):
+def dict_to_string(d):
     val = ""
     for k, v in d.items():
          if type(v) is list:
@@ -35,7 +36,7 @@ def dict_to_string( d ):
     return val
 
 # state = start | stop
-def checkdate(data, state, day, hh):
+def checkdate(data, state: str, day: str, hh: str):
     debugout('checkdate', "DEBUG checkdate state (%s) day (%s) hh (%s) data (%s)" % (state, day, hh, data))
 
     try:

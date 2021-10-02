@@ -4,6 +4,7 @@ import os, datetime, time, pytz
 from logger.main import *
 from functions.main import *
 from functions.telegram import *
+from functions.time import *
 
 aws_region = None
 
@@ -37,33 +38,13 @@ def ec2_init():
 #
 # Loop EC2 instances and check if a 'schedule' tag has been set. Next, evaluate value and start/stop instance if needed.
 #
-def ec2_check():
+def ec2_check(event):
     # Get all reservations.
     instances = ec2.instances.filter(
     Filters=[{'Name': 'instance-state-name', 'Values': ['pending','running','stopping','stopped']}])
 
-    # Get current day + hour (using gmt by default if time parameter not set to local)
-    time_zone =  os.getenv('TIME', 'gmt')
-    if time_zone == 'local':
-        hh  = int(time.strftime("%H", time.localtime()))
-        day = time.strftime("%a", time.localtime()).lower()
-        logger.info("Checking for EC2 instances to start or stop for 'day' " + day + " 'local time' hour " + str(hh))
-    elif time_zone == 'gmt':
-        hh  = int(time.strftime("%H", time.gmtime()))
-        day = time.strftime("%a", time.gmtime()).lower()
-        logger.info("Checking for EC2 instances to start or stop for 'day' " + day + " 'gmt' hour " + str(hh))
-    else:
-        if time_zone in pytz.all_timezones:
-            d = datetime.datetime.now()
-            d = pytz.utc.localize(d)
-            req_timezone = pytz.timezone(time_zone)
-            d_req_timezone = d.astimezone(req_timezone)
-            hh = int(d_req_timezone.strftime("%H"))
-            day = d_req_timezone.strftime("%a").lower()
-            logger.info("Checking for EC2 instances to start or stop for 'day' " + day + " '" + time_zone + "' hour " + str(hh))
-        else:
-            logger.error('Invalid time timezone string value \"%s\", please check!' %(time_zone))
-            raise ValueError('Invalid time timezone string value')
+    # Get current day + hour
+    day, hh = get_day_hh(event, "ec2")
     
     started = []
     stopped = []
@@ -126,37 +107,17 @@ def rds_init():
 #
 # Loop RDS instances and check if a 'schedule' tag has been set. Next, evaluate value and start/stop instance if needed.
 #
-def rds_check():
+def rds_check(event):
     # Get all reservations.
     instances = rds.describe_db_instances()
     clusters = rds.describe_db_clusters()
 
-    # Get current day + hour (using gmt by default if time parameter not set to local)
-    time_zone = os.getenv('TIME', 'gmt')
-    if time_zone == 'local':
-        hh  = int(time.strftime("%H", time.localtime()))
-        day = time.strftime("%a", time.localtime()).lower()
-        logger.info("Checking RDS instances to start or stop for 'day' " + day + " 'local time' hour " + str(hh))
-    elif time_zone == 'gmt':
-        hh  = int(time.strftime("%H", time.gmtime()))
-        day = time.strftime("%a", time.gmtime()).lower()
-        logger.info("Checking RDS instances to start or stop for 'day' " + day + " 'gmt' hour " + str(hh))
-    else:
-        if time_zone in pytz.all_timezones:
-            d = datetime.datetime.now()
-            d = pytz.utc.localize(d)
-            req_timezone = pytz.timezone(time_zone)
-            d_req_timezone = d.astimezone(req_timezone)
-            hh = int(d_req_timezone.strftime("%H"))
-            day = d_req_timezone.strftime("%a").lower()
-            logger.info("Checking RDS instances to start or stop for 'day' " + day + " '" + time_zone + "' hour " + str(hh))
-        else:
-            logger.error('Invalid time timezone string value \"%s\", please check!' %(time_zone))
-            raise ValueError('Invalid time timezone string value')
+    # Get current day + hour
+    day, hh = get_day_hh(event, "rds")
 
     if not instances:
         logger.error('Unable to find any RDS Instances, please check configuration')
-    hh = str(hh)
+    
     rds_loop(instances, hh, day, 'Instance')
     rds_loop(clusters, hh, day, 'Cluster')
 
@@ -231,7 +192,7 @@ def ecs_init():
 
     logger.info("Connected ecs to region \"%s\"", aws_region)
 
-def ecs_check():
+def ecs_check(event):
     # Get all Clusters
     clusters = ecs.list_clusters()
 
@@ -241,28 +202,8 @@ def ecs_check():
     schedule_tag = os.getenv('TAG', 'schedule')
     logger.info("schedule tag is called \"%s\"", schedule_tag)
 
-    # Get current day + hour (using gmt by default if time parameter not set to local)
-    time_zone =  os.getenv('TIME', 'gmt')
-    if time_zone == 'local':
-        hh  = int(time.strftime("%H", time.localtime()))
-        day = time.strftime("%a", time.localtime()).lower()
-        logger.info("Checking for ECS instances to start or stop for 'day' " + day + " 'local time' hour " + str(hh))
-    elif time_zone == 'gmt':
-        hh  = int(time.strftime("%H", time.gmtime()))
-        day = time.strftime("%a", time.gmtime()).lower()
-        logger.info("Checking for ECS instances to start or stop for 'day' " + day + " 'gmt' hour " + str(hh))
-    else:
-        if time_zone in pytz.all_timezones:
-            d = datetime.datetime.now()
-            d = pytz.utc.localize(d)
-            req_timezone = pytz.timezone(time_zone)
-            d_req_timezone = d.astimezone(req_timezone)
-            hh = int(d_req_timezone.strftime("%H"))
-            day = d_req_timezone.strftime("%a").lower()
-            logger.info("Checking for ECS instances to start or stop for 'day' " + day + " '" + time_zone + "' hour " + str(hh))
-        else:
-            logger.error('Invalid time timezone string value \"%s\", please check!' %(time_zone))
-            raise ValueError('Invalid time timezone string value')
+    # Get current day + hour
+    day, hh = get_day_hh(event, "ecs")
 
     for cluster in clusters['clusterArns']:
         response_tags = ecs.list_tags_for_resource(resourceArn=cluster)
@@ -409,15 +350,15 @@ def handler(event, context):
 
     if (ec2_schedule == 'True'):
         ec2_init()
-        ec2_check()
+        ec2_check(event)
 
     if (rds_schedule == 'True'):
         rds_init()
-        rds_check()
+        rds_check(event)
     
     if (ecs_schedule == 'True'):
         ecs_init()
-        ecs_check()
+        ecs_check(event)
 
 # Manual invocation of the script (only used for testing)
 if __name__ == "__main__":
