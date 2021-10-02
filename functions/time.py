@@ -2,7 +2,7 @@ import time, pytz
 from datetime import datetime, timedelta
 from logger.main import *
 
-def get_day_hh(event: dict[str, dict[str, str]], resource: str) -> tuple[str, str]:
+def get_day_hh(event, resource):
     """
     Get current day + hour (using gmt by default if time parameter not set)
     """
