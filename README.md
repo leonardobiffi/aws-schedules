@@ -13,19 +13,19 @@ Execute lambda with event in format as shown below
 ### EC2
 
 ```json
-{"ec2": {"hour": "10"}}
+{"ec2": {"hour": "10", "day": "fri"}}
 ```
 
 ### RDS
 
 ```json
-{"rds": {"hour": "8"}}
+{"rds": {"hour": "8", "day": "mon"}}
 ```
 
-### EC2
+### ECS
 
 ```json
-{"ec2": {"hour": "5"}}
+{"ecs": {"hour": "5", "day": "fri"}}
 ```
 
 ## Schedules Example

@@ -10,11 +10,11 @@ def get_day_hh(event, resource):
     if time_zone == 'local':
         hh  = int(time.strftime("%H", time.localtime()))
         day = time.strftime("%a", time.localtime()).lower()
-        logger.info("Checking for EC2 instances to start or stop for 'day' " + day + " 'local time' hour " + str(hh))
+        logger.info("'local time' hour " + str(hh))
     elif time_zone == 'gmt':
         hh  = int(time.strftime("%H", time.gmtime()))
         day = time.strftime("%a", time.gmtime()).lower()
-        logger.info("Checking for EC2 instances to start or stop for 'day' " + day + " 'gmt' hour " + str(hh))
+        logger.info("'gmt' hour " + str(hh))
     else:
         if time_zone in pytz.all_timezones:
             d = hour_rounder(datetime.now())
@@ -23,7 +23,6 @@ def get_day_hh(event, resource):
             d_req_timezone = d.astimezone(req_timezone)
             hh = int(d_req_timezone.strftime("%H"))
             day = d_req_timezone.strftime("%a").lower()
-            logger.info("Checking for EC2 instances to start or stop for 'day' " + day + " '" + time_zone + "' hour " + str(hh))
         else:
             logger.error('Invalid time timezone string value \"%s\", please check!' %(time_zone))
             raise ValueError('Invalid time timezone string value')
@@ -34,7 +33,12 @@ def get_day_hh(event, resource):
             hh = event[resource]["hour"]
         else:
             logger.info("Hour not found in manual event")
+        if "day" in event[resource]:
+            day = event[resource]["day"]
+        else:
+            logger.info("Day not found in manual event")
 
+    logger.info("Checking for " + resource + " instances to start or stop for 'day' " + day + " hour " + str(hh))
     return day, str(hh)
 
 def hour_rounder(t: datetime):
