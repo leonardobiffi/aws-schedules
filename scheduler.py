@@ -6,7 +6,8 @@ from functions.main import *
 from functions.telegram import *
 from functions.time import *
 
-aws_region = None
+aws_region = os.getenv('REGION', 'us-east-1')
+table = os.getenv('DYNAMODB_TABLE', 'schedule-services')
 
 rds_schedule = os.getenv('RDS_SCHEDULE', 'True')
 rds_schedule = rds_schedule.capitalize()
@@ -20,12 +21,15 @@ ecs_schedule = os.getenv('ECS_SCHEDULE', 'True')
 ecs_schedule = ecs_schedule.capitalize()
 logger.info("ecs_schedule is %s" % ecs_schedule)
 
+asg_schedule = os.getenv('ASG_SCHEDULE', 'True')
+asg_schedule = asg_schedule.capitalize()
+logger.info("asg_schedule is %s" % asg_schedule)
+
 telegram_alert = os.getenv('TELEGRAM_ALERT', 'False')
 logger.info("telegram alert is %s" % ecs_schedule)
 
-#
+
 # Init EC2
-#
 def ec2_init():
     # Setup AWS connection
     aws_region = os.getenv('REGION', 'us-east-1')
@@ -35,9 +39,8 @@ def ec2_init():
     ec2 = boto3.resource('ec2', region_name=aws_region)
     logger.info("Connected to region \"%s\"", aws_region)
 
-#
+
 # Loop EC2 instances and check if a 'schedule' tag has been set. Next, evaluate value and start/stop instance if needed.
-#
 def ec2_check(event):
     # Get all reservations.
     instances = ec2.instances.filter(
@@ -45,7 +48,7 @@ def ec2_check(event):
 
     # Get current day + hour
     day, hh = get_day_hh(event, "ec2")
-    
+
     started = []
     stopped = []
 
@@ -53,7 +56,7 @@ def ec2_check(event):
     logger.info("Schedule tag is called \"%s\"", schedule_tag)
     if not instances:
         logger.error('Unable to find any EC2 Instances, please check configuration')
-    
+
     for instance in instances:
         logger.info("Evaluating EC2 instance \"%s\" state %s" % (instance.id, instance.state["Name"]))
 
@@ -65,7 +68,7 @@ def ec2_check(event):
                     break
             else:
                 logger.info("Not found Tag Name: \"%s\", skipping ..." %(schedule_tag))
-            
+
             # Start instances
             try:
                 if checkdate(data, 'start', day, hh) and instance.state["Name"] != 'running':
@@ -95,6 +98,7 @@ def ec2_check(event):
         alarm_ec2(started, stopped)
 
 
+# RDS init
 def rds_init():
     # Setup AWS connection
     aws_region = os.getenv('REGION', 'us-east-1')
@@ -104,9 +108,8 @@ def rds_init():
     rds = boto3.client('rds', region_name=aws_region)
     logger.info("Connected rds to region \"%s\"", aws_region)
 
-#
+
 # Loop RDS instances and check if a 'schedule' tag has been set. Next, evaluate value and start/stop instance if needed.
-#
 def rds_check(event):
     # Get all reservations.
     instances = rds.describe_db_instances()
@@ -117,30 +120,28 @@ def rds_check(event):
 
     if not instances:
         logger.error('Unable to find any RDS Instances, please check configuration')
-    
+
     rds_loop(instances, hh, day, 'Instance')
     rds_loop(clusters, hh, day, 'Cluster')
 
 
-#
 # Checks the schedule tags for instances or clusters, and stop/starts accordingly
-#
 def rds_loop(rds_objects, hh, day, object_type):
     started = []
     stopped = []
 
     schedule_tag = os.getenv('TAG', 'schedule')
     logger.info("schedule tag is called \"%s\"", schedule_tag)
-    
+
     for instance in rds_objects['DB'+object_type+'s']:
         if 'DBInstanceStatus' not in instance: instance['DBInstanceStatus'] = ''
         if 'Status' not in instance: instance['Status'] = ''
         # instance = json.loads(db_instance)
-        
+
         logger.info("Evaluating RDS instance \"%s\" state: %s" % (instance['DB'+object_type+'Identifier'], instance['DBInstanceStatus']))
         response = rds.list_tags_for_resource(ResourceName=instance['DB'+object_type+'Arn'])
         taglist = response['TagList']
-        
+
         try:
             data = ""
             for tag in taglist:
@@ -156,18 +157,18 @@ def rds_loop(rds_objects, hh, day, object_type):
 
                     logger.info("Starting RDS instance \"%s\"." %(instance['DB'+object_type+'Identifier']))
                     started.append(instance['DB'+object_type+'Identifier'])
-                    
+
                     if object_type == 'Instance': rds.start_db_instance(DBInstanceIdentifier=instance['DB'+object_type+'Identifier'])
                     if object_type == 'Cluster': rds.start_db_cluster(DBClusterIdentifier=instance['DB'+object_type+'Identifier'])
 
                 elif checkdate(data, 'stop', day, hh) and (instance['DBInstanceStatus'] == 'available' or instance['Status'] == 'available'):
-                    
+
                     logger.info("Stopping RDS instance \"%s\"." %(instance['DB'+object_type+'Identifier']))
                     stopped.append(instance['DB'+object_type+'Identifier'])
-                    
+
                     if object_type == 'Instance': rds.stop_db_instance(DBInstanceIdentifier=instance['DB'+object_type+'Identifier'])
                     if object_type == 'Cluster': rds.stop_db_cluster(DBClusterIdentifier=instance['DB'+object_type+'Identifier'])
-            
+
             except Exception as e:
                 logger.info("ERROR rds_loop \"%s\" " % (e))
                 pass # catch exception if 'stop' is not in schedule.
@@ -176,15 +177,17 @@ def rds_loop(rds_objects, hh, day, object_type):
             # invalid JSON
             logger.error(e)
             logger.error('Invalid value for tag \"schedule\" on RDS instance \"%s\", please check!' %(instance['DB'+object_type+'Identifier']))
-    
+
     if telegram_alert == 'True':
         alarm_rds(started, stopped)
 
+
+# ECS init
 def ecs_init():
     # Setup AWS connection
     aws_region = os.getenv('REGION', 'us-east-1')
     logger.info("Connecting ecs to region \"%s\"", aws_region)
-    
+
     global ecs, dynamodb_client, autoscaling
     ecs = boto3.client('ecs', region_name=aws_region)
     autoscaling = boto3.client("application-autoscaling", region_name=aws_region)
@@ -253,10 +256,10 @@ def ecs_check(event):
 
             # Start Tasks
             try:
-                if checkdate(data, 'start', day, hh) and check_service_desiredcount( dynamodb_client ,service, desired_count):
+                if checkdate(data, 'start', day, hh) and check_service_desiredcount(dynamodb_client ,service, desired_count, max_capacity, desired_count):
                     # Get desired count stored in dynamodb table
                     get_item = dynamodb_client.get_item(
-                        TableName='ecs-schedule',
+                        TableName=table,
                         Key={
                             'service': {
                                 'S': service
@@ -266,18 +269,18 @@ def ecs_check(event):
 
                     desired_count = get_item['Item']['desired_count']['N']
                     max_capacity_default = get_item['Item']['max_capacity']['N']
-                    
+
                     logger.info("Update to default {} Tasks in Service {}".format(desired_count, service_name))
 
                     # Update service desiredCount
-                    update_service = ecs.update_service(
+                    ecs.update_service(
                         cluster=cluster,
                         service=service,
                         desiredCount=int(desired_count)
                     )
 
                     # Update Autoscaling Min to desiredCount
-                    update_autoscaling = autoscaling.register_scalable_target(
+                    autoscaling.register_scalable_target(
                         ServiceNamespace="ecs",
                         ResourceId="service/{}/{}".format(cluster_name, service_name),
                         ScalableDimension="ecs:service:DesiredCount",
@@ -288,13 +291,13 @@ def ecs_check(event):
                     started.append(service_name)
 
             except Exception as e:
-                logger.info("Error checking start time : %s" % e)
-                pass                
+                logger.error("Error checking start time : %s" % e)
+                pass
 
             # Stop Tasks
             try:
-                if checkdate(data, 'stop', day, hh) and check_service_desiredcount( dynamodb_client ,service, desired_count):
-                    
+                if checkdate(data, 'stop', day, hh) and check_service_desiredcount( dynamodb_client ,service, desired_count, max_capacity, desired_count):
+
                     tag_desiredcount = check_desiredcount_tag(data, 'stop-desired', day, hh)
                     if len(tag_desiredcount) == 0:
                         # set to 0, stop all
@@ -302,17 +305,20 @@ def ecs_check(event):
                     else:
                         # get first indice
                         tag_desiredcount = tag_desiredcount[0]
-                    
+
                     logger.info("Update to {} Tasks in Service {}".format(tag_desiredcount, service_name))
 
                     # Update default desiredCount
-                    update_table = dynamodb_client.put_item(
-                        TableName='ecs-schedule',
+                    dynamodb_client.put_item(
+                        TableName=table,
                         Item={
                             'service': {
                                 'S': service
                             },
                             'desired_count': {
+                                'N': str(desired_count)
+                            },
+                            'min_capacity': {
                                 'N': str(desired_count)
                             },
                             'max_capacity': {
@@ -322,46 +328,169 @@ def ecs_check(event):
                     )
 
                     # Update service desiredCount
-                    update_service = ecs.update_service(
+                    ecs.update_service(
                         cluster=cluster,
                         service=service,
                         desiredCount=int(tag_desiredcount)
                     )
 
                     # Update Autoscaling Min to desiredCount
-                    update_autoscaling = autoscaling.register_scalable_target(
+                    resource_id = "service/{}/{}".format(cluster_name, service_name)
+                    autoscaling.register_scalable_target(
                         ServiceNamespace="ecs",
-                        ResourceId="service/{}/{}".format(cluster_name, service_name),
+                        ResourceId=resource_id,
                         ScalableDimension="ecs:service:DesiredCount",
                         MinCapacity=int(tag_desiredcount),
                         MaxCapacity=int(tag_desiredcount)
                     )
 
                     stopped.append(service_name)
-                    
+
             except Exception as e:
                 logger.info("Error checking stop time : %s" % e)
-    
+
     if telegram_alert == 'True':
         alarm_ecs(started, stopped)
 
+
+# ASG init
+def asg_init():
+    # Setup AWS connection
+    aws_region = os.getenv('REGION', 'us-east-1')
+    logger.info("Connecting asg to region \"%s\"", aws_region)
+
+    global asg, dynamodb_client
+    asg = boto3.client('autoscaling', region_name=aws_region)
+    dynamodb_client = boto3.client('dynamodb', region_name=aws_region)
+
+
+def asg_check(event):
+    # Get all ASGs
+    groups = asg.describe_auto_scaling_groups()
+
+    started = []
+    stopped = []
+
+    schedule_tag = os.getenv('TAG', 'schedule')
+    logger.info("schedule tag is called \"%s\"", schedule_tag)
+
+    # Get current day + hour
+    day, hh = get_day_hh(event, "asg")
+
+    for group in groups['AutoScalingGroups']:
+        asg_name = group['AutoScalingGroupName']
+        
+        min_size = group['MinSize']
+        max_size = group['MaxSize']
+        desired_count = group['DesiredCapacity']
+
+        data = ""
+        for tag in group['Tags']:
+            if schedule_tag in tag['Key']:
+                data = tag['Value']
+                break
+        else:
+            logger.info("Not found Tag Name: \"%s\", skipping ..." %(schedule_tag))
+
+        print(data)
+
+        # Start Tasks
+        try:
+            if checkdate(data, 'start', day, hh) and check_service_desiredcount(dynamodb_client, asg_name, desired_count, max_size, min_size):
+                # Get desired count stored in dynamodb table
+                get_item = dynamodb_client.get_item(
+                    TableName=table,
+                    Key={
+                        'service': {
+                            'S': asg_name
+                        }
+                    }
+                )
+
+                desired_count = get_item['Item']['desired_count']['N']
+                logger.info("Update to default {} EC2 in ASG {}".format(desired_count, asg_name))
+                
+                # Update asg desired_capacity
+                asg.set_desired_capacity(
+                    AutoScalingGroupName=asg_name,
+                    DesiredCapacity=int(desired_count),
+                    HonorCooldown=True,
+                )
+                
+                started.append(asg_name)
+
+        except Exception as e:
+            logger.error("Error checking start time : %s" % e)
+            pass
+            
+        # Stop Tasks
+        try:
+            if checkdate(data, 'stop', day, hh) and check_service_desiredcount(dynamodb_client, asg_name, desired_count, max_size, min_size):
+                tag_desiredcount = check_desiredcount_tag(data, 'stop-desired', day, hh)
+                if len(tag_desiredcount) == 0:
+                    # set to 0, stop all
+                    tag_desiredcount = 0
+                else:
+                    # get first indice
+                    tag_desiredcount = tag_desiredcount[0]
+
+                logger.info("Update to {} Instance in ASG {}".format(tag_desiredcount, asg_name))
+
+                # Update default desired_count
+                dynamodb_client.put_item(
+                    TableName=table,
+                    Item={
+                        'service': {
+                            'S': asg_name
+                        },
+                        'desired_count': {
+                            'N': str(desired_count)
+                        },
+                        'min_capacity': {
+                            'N': str(min_size)
+                        },
+                        'max_capacity': {
+                            'N': str(max_size)
+                        }
+                    }
+                )
+
+                # Update asg desired_count
+                asg.set_desired_capacity(
+                    AutoScalingGroupName=asg_name,
+                    DesiredCapacity=int(tag_desiredcount),
+                    HonorCooldown=True,
+                )
+
+                stopped.append(asg_name)
+
+        except Exception as e:
+            logger.info("Error checking stop time : %s" % e)
+
+
 # Main function. Entrypoint for Lambda
 def handler(event, context):
-
-    if (ec2_schedule == 'True'):
+    type = list(event)[0]
+    
+    if (ec2_schedule == 'True') and (type == 'ec2'):
         ec2_init()
         ec2_check(event)
 
-    if (rds_schedule == 'True'):
+    if (rds_schedule == 'True') and (type == 'rds'):
         rds_init()
         rds_check(event)
-    
-    if (ecs_schedule == 'True'):
+
+    if (ecs_schedule == 'True') and (type == 'ecs'):
         ecs_init()
         ecs_check(event)
+
+    if (asg_schedule == 'True') and (type == 'asg'):
+        asg_init()
+        asg_check(event)
+
 
 # Manual invocation of the script (only used for testing)
 if __name__ == "__main__":
     # Test data
-    test = {}
+    test = {"asg": {"day": "workday", "hh": "11"}}
     handler(test, None)

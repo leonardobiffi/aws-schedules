@@ -1,43 +1,51 @@
-import os, json
+import os
+import json
 from datetime import datetime, timedelta
 from logger.main import *
 
 # Debug if enable
 debugmode = os.getenv('DEBUG', False)
+table = os.getenv('DYNAMODB_TABLE', 'schedule-services')
+
 
 def debugout(module, data):
     if debugmode:
         logger.info("DEBUG %s : %s" % (module, data))
 
+
 def flattenjson(b, delim):
     val = {}
     for i in b.keys():
-        if isinstance( b[i], dict ):
-            get = flattenjson( b[i], delim )
+        if isinstance(b[i], dict):
+            get = flattenjson(b[i], delim)
             for j in get.keys():
-                val[ i + delim + j ] = get[j]
+                val[i + delim + j] = get[j]
         else:
             val[i] = b[i]
 
     return val
 
+
 def dict_to_string(d):
     val = ""
     for k, v in d.items():
-         if type(v) is list:
-             vs='/'.join(str(s) for s in v)
-         else:
-             vs=v
-         if len(val) == 0 :
-             val=k+"="+str(vs)
-         else:
-             val=val+" "+k+"="+str(vs)
+        if type(v) is list:
+            vs = '/'.join(str(s) for s in v)
+        else:
+            vs = v
+        if len(val) == 0:
+            val = k+"="+str(vs)
+        else:
+            val = val+" "+k+"="+str(vs)
 
     return val
 
 # state = start | stop
+
+
 def checkdate(data, state: str, day: str, hh: str):
-    debugout('checkdate', "DEBUG checkdate state (%s) day (%s) hh (%s) data (%s)" % (state, day, hh, data))
+    debugout('checkdate', "DEBUG checkdate state (%s) day (%s) hh (%s) data (%s)" % (
+        state, day, hh, data))
 
     try:
         schedule = {}
@@ -49,22 +57,24 @@ def checkdate(data, state: str, day: str, hh: str):
             debugout('checkdate', 'JSON format found. (%s)' % data)
             schedule = json.loads(data)
         else:
-            # RDS-Format
+            # Line-Format
             try:
 
-                debugout('checkdate', "RDS format found")
+                debugout('checkdate', "Line format found")
                 # remove ' ' at atart and end, replace multiple ' ' with ' '
-                t=dict(x.split('=') for x in ' '.join(data.split()).split(' '))
+                t = dict(x.split('=')
+                         for x in ' '.join(data.split()).split(' '))
                 for d in t.keys():
-                    dday, datastate=d.split('_')
-                    val=[int(i) for i in t[d].split('/')]
-                    debugout('checkdate', "RDS data: dday (%s) datastate (%s) val (%s)" %(dday, datastate, val))
-                    dstate={}
-                    dstate[datastate]=val
+                    dday, datastate = d.split('_')
+                    val = [int(i) for i in t[d].split('/')]
+                    debugout('checkdate', "data: dday (%s) datastate (%s) val (%s)" % (
+                        dday, datastate, val))
+                    dstate = {}
+                    dstate[datastate] = val
                     if dday in schedule:
                         schedule[dday].update(dstate)
                     else:
-                        schedule[dday]=dstate
+                        schedule[dday] = dstate
 
             except Exception as e:
                 logger.error("Error checkdate : %s" % (e))
@@ -85,14 +95,16 @@ def checkdate(data, state: str, day: str, hh: str):
                 schedule_data = schedule[day][state]
             else:
                 schedule_data = [schedule[day][state]]
-            debugout('checkdate', 'day schedule_data %s' % ', '.join(str(s) for s in schedule_data))
+            debugout('checkdate', 'day schedule_data %s' %
+                     ', '.join(str(s) for s in schedule_data))
 
         if 'daily' in schedule.keys() and state in schedule['daily']:
             if type(schedule['daily'][state]) is list:
                 schedule_data.extend(schedule['daily'][state])
             else:
                 schedule_data.extend([int(schedule['daily'][state])])
-            debugout('checkdate', 'daily schedule_data %s' % ', '.join(str(s) for s in schedule_data))
+            debugout('checkdate', 'daily schedule_data %s' %
+                     ', '.join(str(s) for s in schedule_data))
 
         workdays = ['mon', 'tue', 'wed', 'thu', 'fri']
         if day in workdays and 'workday' in schedule.keys() and state in schedule['workday']:
@@ -101,9 +113,11 @@ def checkdate(data, state: str, day: str, hh: str):
                 schedule_data.extend(schedule['workday'][state])
             else:
                 schedule_data.extend([schedule['workday'][state]])
-            debugout('checkdate', 'workday schedule_data %s' % ', '.join(str(s) for s in schedule_data))
+            debugout('checkdate', 'workday schedule_data %s' %
+                     ', '.join(str(s) for s in schedule_data))
 
-        debugout('checkdate', 'len %i schedule_data %s' % (len(schedule_data), ','.join(str(s) for s in schedule_data)))
+        debugout('checkdate', 'len %i schedule_data %s' %
+                 (len(schedule_data), ','.join(str(s) for s in schedule_data)))
 
         if int(hh) in schedule_data:
             logger.info("checkdate %s time matches hh (%i)" % (state, int(hh)))
@@ -113,8 +127,10 @@ def checkdate(data, state: str, day: str, hh: str):
     except Exception as e:
         logger.error("Error checkdate %s time : %s" % (state, e))
 
+
 def check_desiredcount_tag(data, state, day, hh):
-    debugout('check_desiredcount', "DEBUG check_desiredcount state (%s) day (%s) hh (%s) data (%s)" % (state, day, hh, data))
+    debugout('check_desiredcount', "DEBUG check_desiredcount state (%s) day (%s) hh (%s) data (%s)" % (
+        state, day, hh, data))
 
     try:
         schedule = {}
@@ -126,17 +142,19 @@ def check_desiredcount_tag(data, state, day, hh):
             try:
                 debugout('check_desiredcount', "ECS format found")
                 # remove ' ' at atart and end, replace multiple ' ' with ' '
-                t=dict(x.split('=') for x in ' '.join(data.split()).split(' '))
+                t = dict(x.split('=')
+                         for x in ' '.join(data.split()).split(' '))
                 for d in t.keys():
-                    dday, datastate=d.split('_')
-                    val=[int(i) for i in t[d].split('/')]
-                    debugout('check_desiredcount', "ECS data: dday (%s) datastate (%s) val (%s)" %(dday, datastate, val))
-                    dstate={}
-                    dstate[datastate]=val
+                    dday, datastate = d.split('_')
+                    val = [int(i) for i in t[d].split('/')]
+                    debugout('check_desiredcount', "ECS data: dday (%s) datastate (%s) val (%s)" % (
+                        dday, datastate, val))
+                    dstate = {}
+                    dstate[datastate] = val
                     if dday in schedule:
                         schedule[dday].update(dstate)
                     else:
-                        schedule[dday]=dstate
+                        schedule[dday] = dstate
 
             except Exception as e:
                 logger.error("Error check_desiredcount : %s" % (e))
@@ -144,10 +162,12 @@ def check_desiredcount_tag(data, state, day, hh):
         if debugout:
             for d in schedule.keys():
                 for s in schedule[d].keys():
-                    debugout('check_desiredcount', 'keys: day (%s) state (%s)' % (d, s))
+                    debugout('check_desiredcount',
+                             'keys: day (%s) state (%s)' % (d, s))
 
     except:
-        logger.error("Error check_desiredcount invalid data : %s : %s" % (data, e))
+        logger.error(
+            "Error check_desiredcount invalid data : %s : %s" % (data, e))
 
     try:
         schedule_data = []
@@ -157,14 +177,16 @@ def check_desiredcount_tag(data, state, day, hh):
                 schedule_data = schedule[day][state]
             else:
                 schedule_data = [schedule[day][state]]
-            debugout('check_desiredcount', 'day schedule_data %s' % ', '.join(str(s) for s in schedule_data))
+            debugout('check_desiredcount', 'day schedule_data %s' %
+                     ', '.join(str(s) for s in schedule_data))
 
         if 'daily' in schedule.keys() and state in schedule['daily']:
             if type(schedule['daily'][state]) is list:
                 schedule_data.extend(schedule['daily'][state])
             else:
                 schedule_data.extend([int(schedule['daily'][state])])
-            debugout('check_desiredcount', 'daily schedule_data %s' % ', '.join(str(s) for s in schedule_data))
+            debugout('check_desiredcount', 'daily schedule_data %s' %
+                     ', '.join(str(s) for s in schedule_data))
 
         workdays = ['mon', 'tue', 'wed', 'thu', 'fri']
         if day in workdays and 'workday' in schedule.keys() and state in schedule['workday']:
@@ -173,9 +195,11 @@ def check_desiredcount_tag(data, state, day, hh):
                 schedule_data.extend(schedule['workday'][state])
             else:
                 schedule_data.extend([schedule['workday'][state]])
-            debugout('check_desiredcount', 'workday schedule_data %s' % ', '.join(str(s) for s in schedule_data))
+            debugout('check_desiredcount', 'workday schedule_data %s' %
+                     ', '.join(str(s) for s in schedule_data))
 
-        debugout('check_desiredcount', 'len %i schedule_data %s' % (len(schedule_data), ','.join(str(s) for s in schedule_data)))
+        debugout('check_desiredcount', 'len %i schedule_data %s' %
+                 (len(schedule_data), ','.join(str(s) for s in schedule_data)))
 
         return schedule_data
 
@@ -183,10 +207,10 @@ def check_desiredcount_tag(data, state, day, hh):
         logger.error("Error check_desiredcount %s time : %s" % (state, e))
 
 
-def check_service_desiredcount(dynamodb_client, service, desiredCount):
+def check_service_desiredcount(dynamodb_client, service, desired_count, max_size, min_size):
     try:
         get_item = dynamodb_client.get_item(
-            TableName='ecs-schedule',
+            TableName=table,
             Key={
                 'service': {
                     'S': service
@@ -194,20 +218,29 @@ def check_service_desiredcount(dynamodb_client, service, desiredCount):
             }
         )
 
+        if get_item['Item'] is None:
+            raise Exception("Service not found")
+
         return True
 
     except Exception as e:
         # Add desiredCount if Not Found
         update_table = dynamodb_client.put_item(
-            TableName='ecs-schedule',
+            TableName=table,
             Item={
                 'service': {
                     'S': service
                 },
                 'desired_count': {
-                    'N': str(desiredCount)
-                }
-            }
+                    'N': str(desired_count)
+                },
+                'min_capacity': {
+                    'N': str(min_size)
+                },
+                'max_capacity': {
+                    'N': str(max_size)
+                },
+            },
         )
 
         return True

@@ -1,4 +1,4 @@
-service: scheduler-${env:REGION}
+service: scheduler
 disabledDeprecations: '*'
 useDotenv: true
 plugins:
@@ -17,10 +17,11 @@ provider:
     TAG: schedule
     TIME: ${env:TIME}
     REGION: ${env:REGION}
-    DYNAMODB_TABLE: ecs-schedule
+    DYNAMODB_TABLE: ${env:DYNAMODB_TABLE}
     RDS_SCHEDULE: ${env:RDS_SCHEDULE}
     EC2_SCHEDULE: ${env:EC2_SCHEDULE}
     ECS_SCHEDULE: ${env:ECS_SCHEDULE}
+    ASG_SCHEDULE: ${env:ASG_SCHEDULE}
   iamRoleStatements:
     - Effect: "Allow"
       Action:
@@ -64,10 +65,12 @@ resources:
           - AttributeName: service
             KeyType: HASH
         BillingMode: PAY_PER_REQUEST
-        TableName: ${self:provider.environment.DYNAMODB_TABLE}
+        TableName: ${env:DYNAMODB_TABLE}
 
 functions:
   function:
     handler: scheduler.handler
     events:
-      - schedule: cron(0 * * * ? *)
+      - schedule:
+          rate: rate(1 hour)
+          enabled: true
