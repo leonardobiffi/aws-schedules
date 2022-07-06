@@ -1,6 +1,6 @@
 # Schedule Instances
 
-This lambda is Stop and Start RDS, EC2 and ECS services based in TAG defined
+This lambda is Stop and Start RDS, EC2, ASG and ECS services based in TAG defined
 
 ## Run Manual
 
@@ -30,11 +30,27 @@ Execute lambda with event in format as shown below
 
 ## Schedules Example
 
-### EC2
+## EC2
 
 EC2 accept json or list format
 
-- Monday - Friday
+- Monday to Friday
+
+> JSON Format
+```json
+{"workday": {"start": 8, "stop": 22}}
+```
+
+> List Format
+```text
+workday_start=8 workday_stop=22
+```
+
+## ASG
+
+AutoScaling Groups accept json or list format
+
+- Monday to Friday
 
 > JSON Format
 ```json
