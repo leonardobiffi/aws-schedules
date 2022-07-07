@@ -209,9 +209,6 @@ def ecs_check(event):
     day, hh = get_day_hh(event, "ecs")
 
     for cluster in clusters['clusterArns']:
-        response_tags = ecs.list_tags_for_resource(resourceArn=cluster)
-        tags_list = response_tags['tags']
-
         services = ecs.list_services(
             cluster=cluster
         )
@@ -224,15 +221,19 @@ def ecs_check(event):
 
         logger.info('Cluster: {}'.format(cluster_name))
 
-        data = "{}"
-        for tag in tags_list:
-            if schedule_tag in tag['key']:
-                data = tag['value']
-                break
-        else:
-            logger.info("Not found Tag Name: \"%s\", skipping ..." %(schedule_tag))
-
         for service in services['serviceArns']:
+            response_tags = ecs.list_tags_for_resource(resourceArn=service)
+            tags_list = response_tags['tags']
+
+            data = "{}"
+            for tag in tags_list:
+                if schedule_tag in tag['key']:
+                    data = tag['value']
+                    break
+            else:
+                logger.info("Not found Tag Name: \"%s\", skipping ..." %(schedule_tag))
+                continue
+
             service_details = ecs.describe_services(
                 cluster=cluster,
                 services=[service]
@@ -252,7 +253,13 @@ def ecs_check(event):
             )
 
             desired_count = int(service_details['services'][0]['desiredCount'])
-            max_capacity = response["ScalableTargets"][0]["MaxCapacity"]
+            
+            if len(response["ScalableTargets"]) > 0:
+                asg_enabled = True
+                max_capacity = response["ScalableTargets"][0]["MaxCapacity"]
+            else:
+                asg_enabled = False
+                max_capacity = 0
 
             # Start Tasks
             try:
@@ -280,13 +287,14 @@ def ecs_check(event):
                     )
 
                     # Update Autoscaling Min to desiredCount
-                    autoscaling.register_scalable_target(
-                        ServiceNamespace="ecs",
-                        ResourceId="service/{}/{}".format(cluster_name, service_name),
-                        ScalableDimension="ecs:service:DesiredCount",
-                        MinCapacity=int(desired_count),
-                        MaxCapacity=int(max_capacity_default)
-                    )
+                    if asg_enabled:
+                        autoscaling.register_scalable_target(
+                            ServiceNamespace="ecs",
+                            ResourceId="service/{}/{}".format(cluster_name, service_name),
+                            ScalableDimension="ecs:service:DesiredCount",
+                            MinCapacity=int(desired_count),
+                            MaxCapacity=int(max_capacity_default)
+                        )
 
                     started.append(service_name)
 
@@ -469,22 +477,20 @@ def asg_check(event):
 
 
 # Main function. Entrypoint for Lambda
-def handler(event, context):
-    type = list(event)[0]
-    
-    if (ec2_schedule == 'True') and (type == 'ec2'):
+def handler(event, context):    
+    if (ec2_schedule == 'True'):
         ec2_init()
         ec2_check(event)
 
-    if (rds_schedule == 'True') and (type == 'rds'):
+    if (rds_schedule == 'True'):
         rds_init()
         rds_check(event)
 
-    if (ecs_schedule == 'True') and (type == 'ecs'):
+    if (ecs_schedule == 'True'):
         ecs_init()
         ecs_check(event)
 
-    if (asg_schedule == 'True') and (type == 'asg'):
+    if (asg_schedule == 'True'):
         asg_init()
         asg_check(event)
 

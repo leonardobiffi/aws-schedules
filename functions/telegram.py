@@ -1,8 +1,8 @@
 import os, requests
 
 # Reading environment variables and generating a Telegram Bot API URL
-TELEGRAM_TOKEN = os.environ['TELEGRAM_TOKEN']
-TELEGRAM_USER_ID = os.environ['TELEGRAM_USER_ID']
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN', '')
+TELEGRAM_USER_ID = os.getenv('TELEGRAM_USER_ID', '')
 TELEGRAM_URL = "https://api.telegram.org/bot{}/sendMessage".format(TELEGRAM_TOKEN)
 
 def notify_telegram(message: str):

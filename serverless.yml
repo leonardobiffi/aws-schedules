@@ -37,6 +37,7 @@ provider:
         - "rds:StopDBCluster"
         - "rds:ListTagsForResource"
         - "ecs:*"
+        - "autoscaling:*"
         - "logs:*"
         - "application-autoscaling:*"
       Resource:
@@ -72,5 +73,5 @@ functions:
     handler: scheduler.handler
     events:
       - schedule:
-          rate: rate(1 hour)
+          rate: cron(0 * * * ? *)
           enabled: true
