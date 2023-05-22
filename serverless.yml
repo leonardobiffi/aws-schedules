@@ -8,7 +8,7 @@ custom:
     dockerizePip: python3
 provider:
   name: aws
-  runtime: python3.8
+  runtime: python3.10
   memorySize: 128
   timeout: 900
   region: ${env:REGION}

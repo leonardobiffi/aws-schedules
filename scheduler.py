@@ -498,5 +498,5 @@ def handler(event, context):
 # Manual invocation of the script (only used for testing)
 if __name__ == "__main__":
     # Test data
-    test = {"asg": {"day": "workday", "hh": "11"}}
+    test = {"ec2": {"day": "workday", "hh": "11"}}
     handler(test, None)

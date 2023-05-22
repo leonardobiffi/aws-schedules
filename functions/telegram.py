@@ -5,6 +5,7 @@ TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN', '')
 TELEGRAM_USER_ID = os.getenv('TELEGRAM_USER_ID', '')
 TELEGRAM_URL = "https://api.telegram.org/bot{}/sendMessage".format(TELEGRAM_TOKEN)
 
+
 def notify_telegram(message: str):
     # Payload to be set via POST method to Telegram Bot API
     payload = {
