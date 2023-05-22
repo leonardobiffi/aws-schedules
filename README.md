@@ -107,7 +107,8 @@ Change the env for the Client who will Deploy the function if necessary
 Install plugins serverless framework
 
 ```bash
-serverless plugin install -n serverless-python-requirements --stage prod
+serverless plugin install -n serverless-python-requirements 
+serverless plugin install -n serverless-dotenv-plugin
 ```
 
 ### Deploy
