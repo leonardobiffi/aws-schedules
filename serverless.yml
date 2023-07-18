@@ -3,12 +3,13 @@ disabledDeprecations: '*'
 useDotenv: true
 plugins:
   - serverless-python-requirements
+  - serverless-dotenv-plugin
 custom:
   pythonRequirements:
-    dockerizePip: python3
+    dockerizePip: true
 provider:
   name: aws
-  runtime: python3.10
+  runtime: python3.9
   memorySize: 128
   timeout: 900
   region: ${env:REGION}
@@ -16,7 +17,6 @@ provider:
     DEGUG: ${env:DEGUG}
     TAG: schedule
     TIME: ${env:TIME}
-    REGION: ${env:REGION}
     DYNAMODB_TABLE: ${env:DYNAMODB_TABLE}
     RDS_SCHEDULE: ${env:RDS_SCHEDULE}
     EC2_SCHEDULE: ${env:EC2_SCHEDULE}
