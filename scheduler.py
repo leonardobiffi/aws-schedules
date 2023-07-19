@@ -416,13 +416,14 @@ def asg_check(event):
                 )
 
                 desired_count = get_item['Item']['desired_count']['N']
-                logger.info("Update to default {} EC2 in ASG {}".format(desired_count, asg_name))
-                
-                # Update asg desired_capacity
-                asg.set_desired_capacity(
+                min_size = get_item['Item']['min_capacity']['N']
+                max_size = get_item['Item']['max_capacity']['N']
+                logger.info("Update to default Min {} and Max {} EC2 in ASG {}".format(min_size, max_size, asg_name))
+
+                asg.update_auto_scaling_group(
                     AutoScalingGroupName=asg_name,
-                    DesiredCapacity=int(desired_count),
-                    HonorCooldown=True,
+                    MinSize=int(min_size),
+                    MaxSize=int(max_size),
                 )
                 
                 started.append(asg_name)
@@ -462,12 +463,11 @@ def asg_check(event):
                         }
                     }
                 )
-
-                # Update asg desired_count
-                asg.set_desired_capacity(
+                
+                asg.update_auto_scaling_group(
                     AutoScalingGroupName=asg_name,
-                    DesiredCapacity=int(tag_desiredcount),
-                    HonorCooldown=True,
+                    MinSize=int(tag_desiredcount),
+                    MaxSize=int(tag_desiredcount),
                 )
 
                 stopped.append(asg_name)
