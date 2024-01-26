@@ -109,6 +109,7 @@ Install plugins serverless framework
 ```bash
 serverless plugin install -n serverless-python-requirements 
 serverless plugin install -n serverless-dotenv-plugin
+serverless plugin install -n serverless-plugin-resource-tagging
 ```
 
 ### Deploy

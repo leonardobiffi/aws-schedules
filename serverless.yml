@@ -4,15 +4,18 @@ useDotenv: true
 plugins:
   - serverless-python-requirements
   - serverless-dotenv-plugin
+  - serverless-plugin-resource-tagging
 custom:
   pythonRequirements:
     dockerizePip: true
 provider:
   name: aws
-  runtime: python3.9
+  runtime: python3.11
   memorySize: 128
   timeout: 900
   region: ${env:REGION}
+  stackTags:
+    Source: "https://github.com/leonardobiffi/aws-schedules"
   environment:
     DEGUG: ${env:DEGUG}
     TAG: schedule
