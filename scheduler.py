@@ -1,5 +1,5 @@
 import boto3
-import os, datetime, time, pytz
+import os
 
 from logger.main import *
 from functions.main import *
@@ -134,6 +134,11 @@ def rds_loop(rds_objects, hh, day, object_type):
     logger.info("schedule tag is called \"%s\"", schedule_tag)
 
     for instance in rds_objects['DB'+object_type+'s']:
+        # Aurora instances are not supported to start/stop, only clusters
+        if instance['Engine'] in ['aurora', 'aurora-mysql', 'aurora-postgresql']:
+            logger.info("Skipping Aurora instance \"%s\"." %(instance['DB'+object_type+'Identifier']))
+            continue
+
         if 'DBInstanceStatus' not in instance: instance['DBInstanceStatus'] = ''
         if 'Status' not in instance: instance['Status'] = ''
         # instance = json.loads(db_instance)
