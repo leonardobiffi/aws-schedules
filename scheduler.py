@@ -135,8 +135,8 @@ def rds_loop(rds_objects, hh, day, object_type):
 
     for instance in rds_objects['DB'+object_type+'s']:
         # Aurora instances are not supported to start/stop, only clusters
-        if instance['Engine'] in ['aurora', 'aurora-mysql', 'aurora-postgresql']:
-            logger.info("Skipping Aurora instance \"%s\"." %(instance['DB'+object_type+'Identifier']))
+        if instance['Engine'] in ['aurora', 'aurora-mysql', 'aurora-postgresql'] and object_type == 'Instance':
+            logger.info("Skipping Aurora instance \"%s\". Not supported." %(instance['DB'+object_type+'Identifier']))
             continue
 
         if 'DBInstanceStatus' not in instance: instance['DBInstanceStatus'] = ''
